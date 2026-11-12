@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mastering Her Heart — Relationship Simulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #09090b;
+      --surface-card: rgba(20, 20, 28, 0.9);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --accent-primary: #f43f5e;
+      --accent-glow: rgba(244, 63, 94, 0.35);
+      --text-main: #fafafa;
+      --text-muted: #a1a1aa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(244, 63, 94, 0.15), transparent 50%),
+        radial-gradient(circle at 50% 100%, rgba(139, 92, 246, 0.1), transparent 50%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans Thai', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* เอฟเฟกต์แสงเรืองรอบจอตอนตอบถูก/ผิด */
+    .screen-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      box-shadow: inset 0 0 0 0 transparent;
+      transition: box-shadow 0.3s ease-in-out;
+    }
+
+    .screen-glow.glow-correct {
+      box-shadow: inset 0 0 80px 20px rgba(16, 185, 129, 0.35);
+    }
+
+    .screen-glow.glow-wrong {
+      box-shadow: inset 0 0 80px 20px rgba(244, 63, 94, 0.45);
+    }
+
+    .main-container {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 1;
+    }
+
+    /* เวทีอนิเมชันตัวละครเดินตามกัน */
+    .animation-stage {
+      width: 100%;
+      height: 120px;
+      background: rgba(15, 15, 22, 0.75);
+      border: 1px solid var(--border-subtle);
+      border-radius: 24px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+    }
+
+    .distance-track {
+      position: absolute;
+      bottom: 20px;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: rgba(255,255,255,0.08);
+    }
+
+    .character {
+      position: absolute;
+      bottom: 22px;
+      font-size: 32px;
+      transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    #girlChar {
+      left: 75%;
+      animation: floatGirl 2s infinite ease-in-out;
+    }
+
+    #boyChar {
+      left: 18%;
+      animation: walkBoy 0.4s infinite alternate ease-in-out;
+    }
+
+    @keyframes floatGirl {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    @keyframes walkBoy {
+      0% { transform: translateY(0) rotate(-4deg); }
+      100% { transform: translateY(-4px) rotate(4deg); }
+    }
+
+    .dialogue-bubble {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(24, 24, 34, 0.95);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      padding: 5px 14px;
+      border-radius: 12px;
+      font-size: 11.5px;
+      color: #fb7185;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+
+    /* แผงสถิติ */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 2px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .stat-value {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    /* กรอบหลักเกม */
+    .app-frame {
+      background: var(--surface-card);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: relative;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .shake { animation: shake 0.4s ease-in-out; }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-category {
+      background: rgba(139, 92, 246, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      padding: 4px 12px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .timer-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      padding: 4px 12px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fb7185;
+    }
+
+    .timer-bar-container {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .timer-bar-fill {
+      height: 100%;
+      background: var(--accent-primary);
+      width: 100%;
+      transition: width 1s linear;
+    }
+
+    .question-box h2 {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.55;
+      color: var(--text-main);
+    }
+
+    .options-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .option-btn {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 13px 16px;
+      border-radius: 16px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .option-btn:hover:not(:disabled) {
+      background: rgba(244, 63, 94, 0.1);
+      border-color: rgba(244, 63, 94, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .option-btn.correct {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #10b981;
+      color: #34d399;
+    }
+
+    .option-btn.wrong {
+      background: rgba(244, 63, 94, 0.25);
+      border-color: #f43f5e;
+      color: #fb7185;
+    }
+
+    .screen-center {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+      padding: 10px 0;
+    }
+
+    .screen-center h1 { font-size: 22px; font-weight: 800; }
+    .screen-center p { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f43f5e, #fb7185);
+      color: #fff;
+      border: none;
+      border-radius: 16px;
+      padding: 14px 28px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 25px var(--accent-glow);
+      width: 100%;
+      transition: transform 0.15s ease;
+    }
+
+    .btn-primary:hover { transform: translateY(-2px); }
+    .hidden { display: none !important; }
+
+    .tip-box {
+      background: rgba(139, 92, 246, 0.08);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 16px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: #d8b4fe;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .chance-badge {
+      font-size: 28px;
+      font-weight: 800;
+      color: #fb7185;
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      padding: 10px 20px;
+      border-radius: 20px;
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- เอฟเฟกต์แสงเรืองรอบจอ -->
+  <div class="screen-glow" id="screenGlow"></div>
+
+  <div class="main-container">
+
+    <div class="animation-stage">
+      <div class="dialogue-bubble" id="stageBubble">จำลองสถานการณ์ตามง้อแฟนเก่า: วิเคราะห์ความรู้สึกแล้วเดินหน้าต่อ! 🚶🏻‍♂️💨</div>
+      <div class="distance-track"></div>
+      <div class="character" id="boyChar">🚶🏻‍♂️</div>
+      <div class="character" id="girlChar">🙎🏻‍♀️</div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="stat-card">
+        <span class="stat-label">พลังชีวิต</span>
+        <span class="stat-value" id="statHearts">❤️❤️❤️</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">ความคืบหน้า</span>
+        <span class="stat-value" id="statProgress">0/12 ข้อ</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">คอมโบต่อเนื่อง</span>
+        <span class="stat-value" id="statStreak">🔥 0</span>
+      </div>
+    </div>
+
+    <div class="app-frame" id="appFrame">
+      
+      <div id="startScreen" class="screen-center">
+        <div style="font-size: 48px;">🧠🔥</div>
+        <h1>Mastering Her Heart : Expert Edition</h1>
+        <p>โหมดคำถามความสัมพันธ์ 12 ข้อ พร้อมเอฟเฟกต์แสงเรืองรอบจอ และระบบคำนวณเปอร์เซ็นต์โอกาสที่คนเก่าจะกลับมาตอนท้ายเกม</p>
+        <button class="btn-primary" onclick="startQuiz()">เริ่มจำลองสถานการณ์</button>
+      </div>
+
+      <div id="quizScreen" class="hidden">
+        <div class="header-bar">
+          <span class="badge-category" id="categoryBadge">จิตวิทยาความสัมพันธ์</span>
+          <div class="timer-pill">⏱️ <span id="timeLeft">15</span>s</div>
+        </div>
+
+        <div class="timer-bar-container">
+          <div class="timer-bar-fill" id="timerFill"></div>
+        </div>
+
+        <div class="question-box">
+          <h2 id="questionText">คำถาม...</h2>
+        </div>
+
+        <div class="options-group" id="optionsGroup"></div>
+
+        <div class="tip-box">
+          <span>💡</span>
+          <span id="tipText">ทริค: อ่านโจทย์ให้ละเอียดและเลือกคำตอบที่ถูกต้องที่สุด!</span>
+        </div>
+      </div>
+
+      <div id="resultScreen" class="screen-center hidden">
+        <div style="font-size: 48px;" id="resultEmoji">🎉</div>
+        <h1 id="resultTitle">ผลการประเมิน</h1>
+        <div class="chance-badge" id="chancePercent">โอกาสคืนดี: 0%</div>
+        <p id="resultDesc">รายละเอียด...</p>
+        <button class="btn-primary" onclick="location.reload()">เริ่มจำลองใหม่อีกรอบ</button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const quizData = [
+      {
+        cat: "การอ่านใจเบื้องต้น",
+        q: "1. เมื่อเธอส่งข้อความสั้นๆ มาว่า 'อืม' ทั้งที่เราพยายามชวนคุยเรื่องยาว แปลว่าอะไรในเชิงความรู้สึก?",
+        options: [
+          "เธอเน็ตหมด กำลังจะเข้านอน",
+          "เธออาจจะกำลังงอน น้อยใจ หรือรู้สึกว่าเราไม่ค่อยใส่ใจรายละเอียดที่เธอพิมพ์",
+          "เธอกำลังยุ่งกับงานสำคัญมากๆ",
+          "เธอชอบคำนี้เป็นพิเศษไม่มีอะไรในก่อไผ่"
+        ],
+        correct: 1,
+        tip: "ทริค: คำสั้นๆ มักซ่อนความรู้สึกน้อยใจเอาไว้เสมอ!"
+      },
+      {
+        cat: "สถานการณ์เดท & ตามใจ",
+        q: "2. ถ้าเธอพูดว่า 'แล้วแต่เธอเลย' เวลาชวนไปกินข้าว สิ่งที่เราควรทำเพื่อให้เธอรู้สึกดีและสบายใจที่สุดคืออะไร?",
+        options: [
+          "ตามใจเธอโดยการถามว่าเธออยากกินอะไรเป็นพิเศษจริงๆ หรือพยายามนึกถึงของโปรดที่เธอชอบแล้วพาไปทันที",
+          "เลือกสุ่มร้านใกล้บ้านที่สุดแล้วเดินไปเลยเพราะเธออนุญาตแล้ว",
+          "บังคับให้เธอเป็นคนตัดสินใจเลือกเองคนเดียว",
+          "ปฏิเสธไม่ไปกินข้าวแล้วแยกย้ายกันกลับบ้าน"
+        ],
+        correct: 0,
+        tip: "ทริค: คำว่า 'แล้วแต่' คือการเปิดโอกาสให้เราแสดงความใส่ใจด้วยการเลือกสิ่งที่เธอชอบ!"
+      },
+      {
+        cat: "รับมือยามอารมณ์ร้อน",
+        q: "3. วิธีรับมือที่ฉลาดที่สุด เมื่อเธอระเบิดอารมณ์ใส่โดยที่เรายังไม่รู้ตัวว่าทำอะไรผิด?",
+        options: [
+          "เถียงกลับทันทีเพื่อเคลียร์ความจริงให้ชัดเจน",
+          "เงียบแล้วเดินหนีปล่อยให้เธออยู่คนเดียวเป็นวัน",
+          "ตั้งใจฟังจนจบ ห้ามพูดขัดคอ แล้วพูดทวนความรู้สึกเธอก่อนขอโทษที่ทำให้รู้สึกแย่",
+          "บอกว่าเธอคิดมากไปเองและอารมณ์ร้อนเกินเหตุ"
+        ],
+        correct: 2,
+        tip: "ทริค: การฟังอย่างตั้งใจช่วยลดอุณหภูมิความโกรธได้ครึ่งหนึ่ง"
+      },
+      {
+        cat: "จิตวิทยาการง้อ",
+        q: "4. ทำไมการซื้อของแพงๆ มาโปะทันทีที่เธอโกรธ ถึงไม่ใช่ทางแก้ที่ดีเสมอไป?",
+        options: [
+          "เพราะเปลืองเงินในกระเป๋าเกินไป",
+          "เพราะมันอาจทำให้เธอนึกว่าเราเอาเงินมาซื้อความรู้สึก แทนที่จะแก้ปัญหาที่ต้นเหตุ",
+          "เพราะเธอไม่ชอบของราคาแพงอยู่แล้ว",
+          "เพราะของแพงส่งช้าเกินไป"
+        ],
+        correct: 1,
+        tip: "ทริค: เงินซื้อความใส่ใจไม่ได้ ผู้หญิงต้องการความเข้าใจมากกว่าสิ่งของ"
+      },
+      {
+        cat: "ระยะห่างยามงอน",
+        q: "5. หากเธอบอกว่า 'ไม่อยากคุย ไม่อยากเจอหน้า' ช่วงที่กำลังงอนจัดๆ กลยุทธ์ที่ถูกต้องคือ?",
+        options: [
+          "ตัดขาดการติดต่อยาวๆ 1 สัปดาห์",
+          "ไปยืนรอหน้าห้องนอนหรือหน้าบ้านเธอแบบเซอร์ไพรส์ทันที",
+          "เว้นระยะให้เธอสงบสติ 2-3 ชั่วโมง แต่ส่งข้อความสั้นๆ บอกว่า 'เค้าเป็นห่วงนะ หายโกรธเมื่อไหร่บอกเค้าได้เสมอนะ'",
+          "บล็อกเบอร์กลับเพื่อประชด"
+        ],
+        correct: 2,
+        tip: "ทริค: ให้พื้นที่แต่ไม่ปล่อยมือ คือหัวใจสำคัญ"
+      },
+      {
+        cat: "ความใส่ใจรายละเอียด",
+        q: "6. สิ่งที่ผู้หญิงจดจำได้แม่นที่สุด แม้จะเป็นเรื่องเล็กน้อยเมื่อหลายเดือนก่อนคืออะไร?",
+        options: [
+          "รหัสผ่านไวไฟของเรา",
+          "คำพูดหรือสัญญาเล็กๆ น้อยๆ ที่เราเคยรับปากไว้แต่ทำไม่ได้",
+          "เสื้อที่เราใส่ในวันแรกที่เดทกัน",
+          "ชื่อเพื่อนร่วมงานของเรา"
+        ],
+        correct: 1,
+        tip: "ทริค: คำพูดเล็กๆ น้อยๆ ที่เรารับปากไว้สำคัญมากในสายตาเธอ"
+      },
+      {
+        cat: "สัญญาณเตือนภัย",
+        q: "7. เมื่อเธอเริ่มเงียบผิดปกติ ไม่บ่น ไม่จู้จี้เหมือนเคย สัญญาณเตือนนี้หมายความว่าอะไร?",
+        options: [
+          "เธอกำลังอารมณ์ดีและมีความสุขมาก",
+          "เธอกำลังถอดใจ ปล่อยวาง หรือความอดทนกำลังถึงขีดจำกัด",
+          "เธอแค่ขี้เกียจพิมพ์เฉยๆ",
+          "อินเทอร์เน็ตเธอช้า"
+        ],
+        correct: 1,
+        tip: "ทริค: ความเงียบของผู้หญิงน่ากลัวที่สุด เพราะแปลว่าเธอเริ่มเหนื่อยแล้ว"
+      },
+      {
+        cat: "ศิลปะการขอโทษ",
+        q: "8. การขอโทษที่ทรงพลังและจริงใจที่สุด ประกอบด้วยองค์ประกอบใดบ้าง?",
+        options: [
+          "พูดคำว่าขอโทษสั้นๆ แล้วจบ",
+          "ยอมรับความผิดพลาดชัดเจน + บอกเหตุผลที่ไม่ทำอีก + เสนอแนวทางแก้ไข",
+          "บอกขอโทษแต่โทษสถานการณ์รอบตัวร่วมด้วย",
+          "ส่งสติกเกอร์ขอโทษน่ารักๆ จบเกม"
+        ],
+        correct: 1,
+        tip: "ทริค: ยอมรับแมนๆ แก้ไขตรงจุด คือไม้ตายกู้ความสัมพันธ์"
+      },
+      {
+        cat: "การรับฟังปัญหา",
+        q: "9. ทำไมเวลาเธอบ่นเรื่องปัญหาการทำงาน เธอถึงไม่อยากฟัง 'วิธีแก้ปัญหา' ทันทีจากปากเรา?",
+        options: [
+          "เพราะเธอฉลาดกว่าเราอยู่แล้ว",
+          "เพราะเธอรู้วิธีแก้อยู่แล้ว แต่สิ่งที่เธอต้องการคือ 'การซัพพอร์ตทางใจ' และคนรับฟัง",
+          "เพราะเธอเกลียดคำแนะนำ",
+          "เพราะเธอแค่อยากทดสอบไหวพริบเรา"
+        ],
+        correct: 1,
+        tip: "ทริค: บางทีเธอแค่อยากระบาย ไม่ได้ต้องการคำสั่งสอน"
+      },
+      {
+        cat: "การพิสูจน์ตัวเอง",
+        q: "10. หากเราเผลอทำผิดซ้ำซากในเรื่องเดิมๆ สิ่งที่เธอต้องการเห็นมากที่สุดคืออะไร?",
+        options: [
+          "คำแก้ตัวที่ฟังดูมีเหตุผลมากขึ้น",
+          "การเปลี่ยนแปลงพฤติกรรมที่เป็นรูปธรรมและพิสูจน์ให้เห็นจริง ไม่ใช่แค่สัญญาปากเปล่า",
+          "การซื้อของขวัญชิ้นใหญ่กว่าเดิม",
+          "การขอร้องให้เธอยกโทษให้เร็วที่สุด"
+        ],
+        correct: 1,
+        tip: "ทริค: การกระทำสำคัญกว่าคำพูดเสมอ"
+      },
+      {
+        cat: "ภาษากาย",
+        q: "11. ภาษากายแบบไหนที่บ่งบอกว่าเธอยังโกรธอยู่ แม้ปากจะบอกว่า 'ไม่ได้เป็นอะไร'?",
+        options: [
+          "ยิ้มแย้มแจ่มใสและหัวเราะเสียงดัง",
+          "กอดอก หลบตา เสียงห้วนสั้น และไม่ยอมหันมามองหน้าเวลาคุย",
+          "ชวนเราไปกินของอร่อย",
+          "นอนหลับสบายตลอดคืน"
+        ],
+        correct: 1,
+        tip: "ทริค: ปากบอกไม่เป็นไร แต่ภาษากายฟ้องชัดเจน!"
+      },
+      {
+        cat: "บทสรุปความสัมพันธ์",
+        q: "12. บทสรุปสูงสุดของการรักษาใจผู้หญิงให้ยืนยาวและมีความสุข คืออะไร?",
+        options: [
+          "การยอมจำนนทุกเรื่องโดยไม่ต้องมีเหตุผล",
+          "ความเสมอต้นเสมอปลาย ความใส่ใจในรายละเอียด และการสื่อสารกันด้วยความเข้าใจ",
+          "การให้เงินเดือนทั้งหมดเก็บไว้ที่เธอ",
+          "การปล่อยให้เธอจัดการทุกอย่างตามใจชอบ"
+        ],
+        correct: 1,
+        tip: "ทริค: ความเสมอต้นเสมอปลายชนะทุกสิ่ง"
+      }
+    ];
+
+    let currentQ = 0;
+    let score = 0;
+    let hearts = 3;
+    let streak = 0;
+    let timer = 15;
+    let timerInterval = null;
+
+    const startScreen = document.getElementById('startScreen');
+    const quizScreen = document.getElementById('quizScreen');
+    const resultScreen = document.getElementById('resultScreen');
+    const questionText = document.getElementById('questionText');
+    const optionsGroup = document.getElementById('optionsGroup');
+    const categoryBadge = document.getElementById('categoryBadge');
+    const statHearts = document.getElementById('statHearts');
+    const statProgress = document.getElementById('statProgress');
+    const statStreak = document.getElementById('statStreak');
+    const timeLeftEl = document.getElementById('timeLeft');
+    const timerFill = document.getElementById('timerFill');
+    const appFrame = document.getElementById('appFrame');
+    const boyChar = document.getElementById('boyChar');
+    const stageBubble = document.getElementById('stageBubble');
+    const tipText = document.getElementById('tipText');
+    const screenGlow = document.getElementById('screenGlow');
+    const chancePercent = document.getElementById('chancePercent');
+
+    function flashGlow(type) {
+      screenGlow.className = 'screen-glow';
+      void screenGlow.offsetWidth;
+      if (type === 'correct') {
+        screenGlow.classList.add('glow-correct');
+      } else {
+        screenGlow.classList.add('glow-wrong');
+      }
+      setTimeout(() => {
+        screenGlow.className = 'screen-glow';
+      }, 500);
+    }
+
+    function updateDashboard() {
+      statHearts.textContent = '❤️'.repeat(hearts) + '🖤'.repeat(3 - hearts);
+      statProgress.textContent = `${currentQ}/${quizData.length} ข้อ`;
+      statStreak.textContent = `🔥 ${streak}`;
+      
+      let progressPct = (currentQ / quizData.length) * 50 + 18;
+      boyChar.style.left = `${progressPct}%`;
+    }
+
+    function startQuiz() {
+      startScreen.classList.add('hidden');
+      quizScreen.classList.remove('hidden');
+      currentQ = 0;
+      score = 0;
+      hearts = 3;
+      streak = 0;
+      updateDashboard();
+      loadQuestion();
+    }
+
+    function loadQuestion() {
+      if (hearts <= 0) return gameOver();
+      if (currentQ >= quizData.length) return gameWin();
+
+      clearInterval(timerInterval);
+      timer = 15;
+      timeLeftEl.textContent = timer;
+      timerFill.style.width = '100%';
+
+      const q = quizData[currentQ];
+      categoryBadge.textContent = q.cat;
+      questionText.textContent = q.q;
+      tipText.textContent = q.tip;
+      optionsGroup.innerHTML = '';
+
+      q.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = opt;
+        btn.onclick = () => selectAnswer(idx, btn);
+        optionsGroup.appendChild(btn);
+      });
+
+      timerInterval = setInterval(() => {
+        timer--;
+        timeLeftEl.textContent = timer;
+        timerFill.style.width = `${(timer / 15) * 100}%`;
+
+        if (timer <= 0) {
+          clearInterval(timerInterval);
+          handleWrongAnswer();
+        }
+      }, 1000);
+    }
+
+    function selectAnswer(selectedIdx, btn) {
+      clearInterval(timerInterval);
+      const q = quizData[currentQ];
+      const allBtns = optionsGroup.querySelectorAll('.option-btn');
+      allBtns.forEach(b => b.disabled = true);
+
+      if (selectedIdx === q.correct) {
+        btn.classList.add('correct');
+        score++;
+        streak++;
+        flashGlow('correct');
+        stageBubble.textContent = "ตอบถูกต้อง! พี่หนุ่มก้าวเดินตามเข้าใกล้เธออีกก้าวแล้ว! 🚶🏻‍♂️✨";
+        setTimeout(() => {
+          currentQ++;
+          updateDashboard();
+          loadQuestion();
+        }, 1200);
+      } else {
+        btn.classList.add('wrong');
+        allBtns[q.correct].classList.add('correct');
+        appFrame.classList.add('shake');
+        setTimeout(() => appFrame.classList.remove('shake'), 400);
+
+        hearts--;
+        streak = 0;
+        flashGlow('wrong');
+        updateDashboard();
+        stageBubble.textContent = "ตอบผิด! เธอเริ่มเดินถอยห่างออกไปอีกนิดแล้ว... 😭";
+
+        setTimeout(() => {
+          if (hearts <= 0) {
+            gameOver();
+          } else {
+            currentQ++;
+            updateDashboard();
+            loadQuestion();
+          }
+        }, 1500);
+      }
+    }
+
+    function handleWrongAnswer() {
+      hearts--;
+      streak = 0;
+      flashGlow('wrong');
+      updateDashboard();
+      appFrame.classList.add('shake');
+      setTimeout(() => appFrame.classList.remove('shake'), 400);
+      stageBubble.textContent = "หมดเวลา! เธอเดินหนีไกลออกไปอีกแล้ว... ⏱️💔";
+
+      if (hearts <= 0) {
+        gameOver();
+      } else {
+        currentQ++;
+        updateDashboard();
+        loadQuestion();
+      }
+    }
+
+    function calculateChance() {
+      let percentage = Math.round((score / quizData.length) * 100);
+      if (score === 12) return 98;
+      if (score >= 9) return 85;
+      if (score >= 6) return 60;
+      if (score >= 3) return 35;
+      return 15;
+    }
+
+    function gameOver() {
+      clearInterval(timerInterval);
+      quizScreen.classList.add('hidden');
+      resultScreen.classList.remove('hidden');
+      
+      let chance = calculateChance();
+      chancePercent.textContent = `โอกาสที่เธอจะกลับมา: ${chance}%`;
+
+      document.getElementById('resultEmoji').textContent = "💔";
+      document.getElementById('resultTitle').textContent = "ตามไม่ทัน! พลังชีวิตหมดลง";
+      document.getElementById('resultDesc').textContent = `คุณตอบถูก ${score}/${quizData.length} ข้อ พลังชีวิตหมดเกลี้ยง โอกาสที่คนเก่าจะกลับมาอยู่ที่ประมาณ ${chance}% ลองใหม่อีกรอบนะ!`;
+    }
+
+    function gameWin() {
+      clearInterval(timerInterval);
+      quizScreen.classList.add('hidden');
+      resultScreen.classList.remove('hidden');
+      boyChar.style.left = "68%";
+
+      let chance = calculateChance();
+      chancePercent.textContent = `โอกาสที่เธอจะกลับมา: ${chance}%`;
+
+      document.getElementById('resultEmoji').textContent = "🏆💖";
+      document.getElementById('resultTitle').textContent = "สำเร็จ! ตามง้อแฟนสำเร็จแล้ว!";
+      document.getElementById('resultDesc').textContent = `คุณตอบถูก ${score}/${quizData.length} ข้อ เดินตามไปง้อจนเจอตัวสำเร็จ ด้วยความเข้าใจระดับนี้ โอกาสที่เธอจะกลับมาสูงถึง ${chance}% ลุยเลย!`;
+    }
+  </script>
+</body>
+</html>
